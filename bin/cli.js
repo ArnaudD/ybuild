@@ -8,21 +8,24 @@
  */
 
 var path        = require('path')
+    , fs        = require('fs')
     , nopt      = require('nopt')
     , pkginfo   = require('pkginfo')(module)
     , winston   = require('winston') // Required because we are superseding buildy's logging behaviour.
     , Component = require('../lib/component.js').Component
     , queues    = require('../lib/queues.js')
-    , knownOpts = { "help" : Boolean
+    , knownOpts = { "help"      : Boolean
                   , "verbosity" : Number
                   , "recursive" : Boolean
                   , "buildfile" : String
                   , "colorize"  : Boolean
+                  , "watch"     : Boolean
     }
     , shortHands = { "h" : ["--help"]
                    , "v" : ["--verbosity", "warn"]
                    , "vv" : ["--verbosity", "info"]
                    , "vvv" : ["--verbosity", "verbose"]
+                   , "w" : ["--watch"]
                    , "r" : ["--recursive"]
                    , "f" : ["--buildfile"]
                    , "c" : ["--colorize"]
@@ -40,6 +43,7 @@ var path        = require('path')
         "  -v, -vv, -vvv         Verbosity level (Warnings, Info, Verbose) (default Info)",
         "  -f, --buildfile       Use this filename to read build options (default \"build.json\")",
         "  -c, --color           Colorize the console output",
+        "  -w, --watch           Watch for file changes and rebuild",
         ""
     ].join('\n');
 
@@ -66,10 +70,11 @@ if (parsed.recursive) {
 
        path.exists(buildFilePath, function(exists) {
            if (exists) {
-                var c = Component(buildFilePath);
-
-                logger.log('info', 'Building ' + c.component + '...');
-                build(c);
+                if (parsed.watch === true) {
+                    watchComponent(buildFilePath);
+                } else {
+                    buildComponent(buildFilePath);
+                }
            } else {
                logger.log('warn', 'Couldn\'t find a build file at ' + buildFilePath + ', skipping...');
            }
@@ -77,11 +82,14 @@ if (parsed.recursive) {
     }, this);
 }
 
-function build(component) {
+function buildComponent(buildFile) {
     var taskQueues = [],
+        component = Component(buildFile);
         queueOpts = {
             logger: logger
         };
+
+    logger.log('info', 'Building ' + component.component + '...');
 
     taskQueues.push(queues._createSourceQueue(component, queueOpts));
 
@@ -93,4 +101,35 @@ function build(component) {
     taskQueues.forEach(function each_queue(moduleQueue) {
        moduleQueue.run();
     }, this);
+}
+
+function watchComponent(buildFile) {
+    var component = Component(buildFile);
+
+    logger.log('info', 'Watching ' + component.component + '...');
+
+    // Watch JS files
+    component.sourcefiles.forEach(watchFile);
+
+    // Watch assets
+    watchDir(component.assets);
+
+    // Watch build file
+    watchFile(buildFile);
+}
+
+function watchFile(file) {
+    // TODO test if exist
+    fs.watch(file, function() {
+        // TODO
+        // see https://github.com/jashkenas/coffee-script/blob/master/src/command.coffee
+    });
+}
+
+function watchDir(dir) {
+    // TODO test if exist
+    fs.watch(dir, function() {
+
+    });
+
 }
